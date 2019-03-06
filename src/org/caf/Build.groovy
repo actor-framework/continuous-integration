@@ -194,7 +194,12 @@ def makeStages(config, jobName, matrixIndex, os, builds, lblExpr, extraSteps) {
                             def buildId = "${lblExpr}_${buildType}".replace(' && ', '_')
                             withEnv(config['buildEnvironments'][lblExpr] ?: []) {
                               buildSteps(config, jobName, buildId, buildType, (config['buildFlags'][os] ?: config['defaultBuildFlags'])[buildType])
-                              extraSteps.each { fun -> "$fun"(config, jobName, buildId) }
+                              extraSteps.each { fun ->
+                                if (fun instanceof String)
+                                  "$fun"(config, jobName, buildId)
+                                else
+                                  fun(config, jobName, buildId)
+                              }
                             }
                         } finally {
                           cleanWs()
