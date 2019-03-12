@@ -9,7 +9,7 @@ def call(config) {
         ])
         sh '''
             chmod +x clang-format-diff.py
-            ./clang-format-diff.py -p1 < git_diff.txt > clang-format-diff.txt
+            ./clang-format-diff.py -p1 < git_diff.txt > clang-format-diff.txt || true
         '''
         stash([
             includes: 'clang-format-diff.txt',
