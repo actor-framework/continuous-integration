@@ -58,6 +58,7 @@ def integrationTests(config, jobName, buildId) {
         deleteDir()
         try {
             def baseDir = "$WORKSPACE/$buildId/${config.integration.path}"
+            def conf_set = config.integration.containsKey('config') ? "$WORKSPACE/$buildId/${config.integration.config}" : "$baseDir/default_set.yaml"
             def envDir = pwd() + "python-environment"
             writeFile([
                 file: 'all-integration-tests.txt',
@@ -75,7 +76,7 @@ def integrationTests(config, jobName, buildId) {
                 pip install -r "$baseDir/requirements.txt"
                 python "$baseDir/integration.py" -l | while read test ; do
                     echo "\$test" >> all-integration-tests.txt
-                    python "$baseDir/integration.py" --app "$app" -t "\$test" -d "integration" || echo "\$test" >> failed-integration-tests.txt
+                    python "$baseDir/integration.py" --app "$app" -t "\$test" -d "integration" -s "$conf_set" || echo "\$test" >> failed-integration-tests.txt
                 done
             """
             if (fileExists('integration')) {
