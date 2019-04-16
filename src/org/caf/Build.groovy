@@ -58,7 +58,7 @@ def integrationTests(config, jobName, buildId) {
         deleteDir()
         try {
             def baseDir = "$WORKSPACE/$buildId/${config.integration.path}"
-            def conf_set = config.integration.containsKey('config') ? "$WORKSPACE/$buildId/${config.integration.config}" : "$baseDir/default_set.yaml"
+            def conf_set = config.integration.containsKey('config') ? "$WORKSPACE/sources/${config.integration.config}" : "$baseDir/default_set.yaml"
             def envDir = pwd() + "python-environment"
             writeFile([
                 file: 'all-integration-tests.txt',
