@@ -76,7 +76,7 @@ def integrationTests(config, jobName, buildId) {
                 pip install -r "$baseDir/requirements.txt"
                 python "$baseDir/integration.py" -l | while read test ; do
                     echo "\$test" >> all-integration-tests.txt
-                    python "$baseDir/integration.py" --app "$app" -t "\$test" -d "integration" -s "$conf_set" || echo "\$test" >> failed-integration-tests.txt
+                    python "$baseDir/integration.py" --app "$app" -t "\$test" -d "integration" -s "$conf_set" &> "\$test.txt" || echo "\$test" >> failed-integration-tests.txt
                 done
             """
             if (fileExists('integration')) {
