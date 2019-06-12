@@ -6,12 +6,12 @@ def setBuildStatus(config, context, state, message) {
       return
     withCredentials([string(credentialsId: 'github-token', variable: 'GitHubToken')]) {
         sh([
-            script """
+            script: """
                 curl https://api.github.com/repos/${config.repository}/statuses/${env.GIT_COMMIT} \
                      -H "authorization: token \$GitHubToken" \
                      -H "content-type: application/json" \
                      -X POST \
-                     -d "{ \"state\": \"$state\", \"description\": \"$message\", \"target_url\": \"${env.BUILD_URL}\", \"context\": \"$context\" }"
+                     -d '{ "state": "$state", "description": "$message", "target_url": "${env.BUILD_URL}", "context": "$context" }'
             """
         ])
     }
