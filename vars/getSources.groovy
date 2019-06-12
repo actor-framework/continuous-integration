@@ -16,5 +16,5 @@ def call(config) {
         """
     }
     stash includes: 'sources/**', name: 'sources'
-    notifyAllChecks(config, 'PENDING', '')
+    notifyAllChecks(config, 'pending', '')
 }
