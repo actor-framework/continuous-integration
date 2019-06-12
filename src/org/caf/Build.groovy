@@ -100,8 +100,11 @@ def integrationTests(config, jobName, buildId) {
 // Compiles, installs and tests via CMake.
 def cmakeSteps(config, jobName, buildId, buildType, cmakeBaseArgs) {
     def installDir = "$WORKSPACE/$buildId"
-    def cmakeArgs = config['dependencies']['cmakeRootVariables'].collect {
-        "-D$it=\"$installDir\""
+    def cmakeArgs = []
+    if (config.containsKey('dependencies')) {
+        cmakeArgs = config['dependencies']['cmakeRootVariables'].collect {
+            "-D$it=\"$installDir\""
+        }
     }
     cmakeBaseArgs.each {
       cmakeArgs  << "-D$it"
@@ -159,19 +162,21 @@ def buildSteps(config, jobName, buildId, buildType, cmakeArgs) {
     dir(buildId) {
       // Create directory.
     }
-    def webDependencies = config['dependencies']['web'] ?: []
-    def artifactDependencies = config['dependencies']['artifact'] ?: []
-    dir('dependency-import') {
-        webDependencies.each {
-            sh "curl -O \"$it/${buildId}.zip\""
-            unzipAndDelete(buildId)
-        }
-        artifactDependencies.each {
-            copyArtifacts([
-                filter: "${buildId}.zip",
-                projectName: it,
-            ])
-            unzipAndDelete(buildId)
+    if (config.containsKey('dependencies')) {
+        def webDependencies = config['dependencies']['web'] ?: []
+        def artifactDependencies = config['dependencies']['artifact'] ?: []
+        dir('dependency-import') {
+            webDependencies.each {
+                sh "curl -O \"$it/${buildId}.zip\""
+                unzipAndDelete(buildId)
+            }
+            artifactDependencies.each {
+                copyArtifacts([
+                    filter: "${buildId}.zip",
+                    projectName: it,
+                ])
+                unzipAndDelete(buildId)
+            }
         }
     }
     unstash 'sources'
