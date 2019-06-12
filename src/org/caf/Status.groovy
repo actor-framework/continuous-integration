@@ -165,12 +165,12 @@ def collectAllChecks(config, jobName) {
                 texts << checkResult.text
                 // Don't set commit status for 'build', because Jenkins will do that anyway.
                 if (it != 'build')
-                    setBuildStatus(it, 'success', checkResult.summary)
+                    setBuildStatus(config, it, 'success', checkResult.summary)
             } else {
                 failedChecks += 1
                 headlines << "⛔️ $it"
                 texts << checkResult.text
-                setBuildStatus(it, 'failure', checkResult.summary)
+                setBuildStatus(config, it, 'failure', checkResult.summary)
             }
             if (checkResult.containsKey('attachmentsPattern'))
               attachmentsPatterns << checkResult.attachmentsPattern
