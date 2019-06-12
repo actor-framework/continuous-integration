@@ -1,35 +1,20 @@
 package org.caf
 
 // Adds additional context information to commits on GitHub.
-def setBuildStatus(context, state, message) {
-    echo "set ${context} result for commit ${env.GIT_COMMIT} on repository ${env.GIT_URL} to $state: $message"
-    step([
-        $class: 'GitHubCommitStatusSetter',
-        commitShaSource: [
-            $class: 'ManuallyEnteredShaSource',
-            sha: env.GIT_COMMIT,
-        ],
-        reposSource: [
-            $class: 'ManuallyEnteredRepositorySource',
-            url: 'git@github.com:tenzir/tenzir.git',
-        ],
-        contextSource: [
-            $class: 'ManuallyEnteredCommitContextSource',
-            context: context,
-        ],
-        errorHandlers: [[
-            $class: 'ChangingBuildStatusErrorHandler',
-            result: 'SUCCESS',
-        ]],
-        statusResultSource: [
-            $class: 'ConditionalStatusResultSource',
-            results: [[
-                $class: 'AnyBuildResult',
-                state: state,
-                message: message,
-            ]]
-        ],
-    ]);
+def setBuildStatus(config, context, state, message) {
+    if (!config.containsKey('repository'))
+      return
+    withCredentials([string(credentialsId: 'github-token', variable: 'GitHubToken')]) {
+        sh([
+            script """
+                curl https://api.github.com/repos/${config.repository}/statuses/${env.GIT_COMMIT} \
+                     -H "authorization: token \$GitHubToken" \
+                     -H "content-type: application/json" \
+                     -X POST \
+                     -d "{ \"state\": \"$state\", \"description\": \"$message\", \"target_url\": \"${env.BUILD_URL}\", \"context\": \"$context\" }"
+            """
+        ])
+    }
 }
 
 // Returns the content of fileName as list of strings or an empty list if the file does not exist.
