@@ -46,6 +46,7 @@ def coverageReport(config, jobName, buildId) {
             echo "exception: $e"
             sh 'ls -R .'
             archiveArtifacts 'kcov_output.txt'
+            unstable(message: "Unable to create coverage report")
         }
     }
 }
@@ -62,10 +63,6 @@ def integrationTests(config, jobName, buildId) {
             def envDir = pwd() + "python-environment"
             writeFile([
                 file: 'all-integration-tests.txt',
-                text: ''
-            ])
-            writeFile([
-                file: 'failed-integration-tests.txt',
                 text: ''
             ])
             sh """
@@ -85,6 +82,9 @@ def integrationTests(config, jobName, buildId) {
                     dir: 'integration',
                     zipFile: 'integration.zip',
                 ])
+            }
+            if (fileExists('failed-integration-tests.txt')) {
+                unstable(message: "One or more integration tests failed");
             }
             archiveArtifacts '*.txt'
             stash([
@@ -133,6 +133,7 @@ def cmakeSteps(config, jobName, buildId, buildType, cmakeBaseArgs) {
             writeFile file: "${buildId}.success", text: "success\n"
         } catch (Exception) {
             writeFile file: "${buildId}.failure", text: "failure\n"
+            unstable(message: "One or more unit tests failed")
         }
         stash includes: "${buildId}.*", name: buildId
     }
