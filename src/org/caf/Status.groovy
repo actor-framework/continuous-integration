@@ -180,7 +180,6 @@ def collectAllChecks(config, jobName) {
         // Send email notification.
         emailext(
             subject: "$jobName: " + headlines.join(', '),
-            to: 'engineering@tenzir.com',
             recipientProviders: [culprits()],
             attachLog: failedChecks > 0,
             compressLog: true,
