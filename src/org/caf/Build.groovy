@@ -99,6 +99,7 @@ def integrationTests(config, jobName, buildId) {
 
 // Compiles, installs and tests via CMake.
 def cmakeSteps(config, jobName, buildId, buildType, cmakeBaseArgs) {
+    echo "Run CMake for build ID $buildId on node $NODE_NAME"
     def installDir = "$WORKSPACE/$buildId"
     def cmakeArgs = []
     if (config.containsKey('dependencies')) {
