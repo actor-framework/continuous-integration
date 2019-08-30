@@ -3,7 +3,7 @@ def call(config) {
     deleteDir()
     dir('sources') {
         checkout scm
-        // Prepare the git_diff.txt file needed by the 'Check Style' stage.
+        // Generate "git_diff.txt "and optionally "release.txt" for later stages.
         sh """
             if [ "${env.GIT_BRANCH}" == master ] ; then
                 # on master, we simply compare to the last commit
@@ -12,6 +12,9 @@ def call(config) {
                 # in branches, we diff to the merge-base, because Jenkins might not see each commit individually
                 git fetch --no-tags ${env.GIT_URL} +refs/heads/master:refs/remotes/origin/master
                 git diff -U0 --no-color \$(git merge-base origin/master HEAD) > git_diff.txt
+            fi
+            if [ -f scripts/get-release-version.sh ] ; then
+              sh scripts/get-release-version.sh
             fi
         """
     }
