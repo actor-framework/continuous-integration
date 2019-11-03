@@ -102,6 +102,8 @@ def cmakeSteps(config, jobName, buildId, buildType, cmakeBaseArgs) {
     echo "Run CMake for build ID $buildId on node $NODE_NAME"
     def installDir = "$WORKSPACE/$buildId"
     def cmakeArgs = []
+    def cmakeInstallation = env.CMAKE_INSTALLATION ?: 'cmake in search path'
+    echo "using CMake installation: ${cmakeInstallation}"
     if (config.containsKey('dependencies')) {
         cmakeArgs = config['dependencies']['cmakeRootVariables'].collect {
             "-D$it=\"$installDir\""
@@ -117,7 +119,7 @@ def cmakeSteps(config, jobName, buildId, buildType, cmakeBaseArgs) {
             buildDir: 'build',
             buildType: buildType,
             cmakeArgs: cmakeArgs.join(' '),
-            installation: 'cmake in search path',
+            installation: cmakeInstallation,
             sourceDir: '.',
             steps: [[
                 args: '--target install',
@@ -128,7 +130,7 @@ def cmakeSteps(config, jobName, buildId, buildType, cmakeBaseArgs) {
         try {
             ctest([
                 arguments: '--output-on-failure',
-                installation: 'cmake in search path',
+                installation: cmakeInstallation,
                 workingDir: 'build',
             ])
             writeFile file: "${buildId}.success", text: "success\n"
