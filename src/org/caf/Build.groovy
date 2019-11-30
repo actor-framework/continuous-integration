@@ -3,7 +3,7 @@ package org.caf
 // Creates coverage reports via kcov and the Cobertura plugin.
 def coverageReport(config, jobName, buildId) {
     def settings = config['coverage']
-    def testBinary = settings['binary']
+    def testBinaries = settings.containsKey('binary') ? [settings['binary']] : settings['binaries']
     def excludePaths = settings['relativeExcludePaths'].collect { "$WORKSPACE/sources/$it" } + [
         "$WORKSPACE/$buildId/",
         "/usr/",
@@ -19,13 +19,17 @@ def coverageReport(config, jobName, buildId) {
     def excludePathsStr = excludePaths.join(',')
     dir('sources') {
         try {
-            withEnv(['ASAN_OPTIONS=verify_asan_link_order=false:detect_leaks=0']) {
-                sh """
-                    kcov --exclude-path=$excludePathsStr kcov-result $testBinary &> kcov_output.txt
-                    find kcov-result -name 'cobertura.xml' -exec mv {} cobertura.xml \\;
-                    find kcov-result -name 'coverage.json' -exec mv {} coverage.json \\;
-                """
+            testBinaries.each{testBinary ->
+                withEnv(['ASAN_OPTIONS=verify_asan_link_order=false:detect_leaks=0']) {
+                    sh """
+                        kcov --exclude-path=$excludePathsStr kcov-result $testBinary &> kcov_output.txt
+                    """
+                }
             }
+            sh """
+                find kcov-result -name 'cobertura.xml' -exec mv {} cobertura.xml \\;
+                find kcov-result -name 'coverage.json' -exec mv {} coverage.json \\;
+            """
             archiveArtifacts 'cobertura.xml,coverage.json'
             cobertura([
                 autoUpdateHealth: false,
