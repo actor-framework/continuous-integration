@@ -8,7 +8,7 @@ def call(config, jobName) {
             def matrixIndex = "[$index:$toolIndex]"
             def builds = settings['builds']
             def labelExpr = "$os && $tool"
-            xs << build.makeStages(config, jobName, matrixIndex, os, builds, labelExpr, settings['extraSteps'] ?: [])
+            xs << build.makeStages(config, jobName, settings, matrixIndex, os, builds, labelExpr, settings['extraSteps'] ?: [])
         }
     }
     parallel xs

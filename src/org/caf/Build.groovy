@@ -126,17 +126,24 @@ def cmakeSteps(config, jobName, buildId, buildType, cmakeBaseArgs) {
             installation: cmakeInstallation,
             sourceDir: '.',
             steps: [[
-                args: '--target install',
+                args: "--target install --config $buildType",
                 withCmake: true,
             ]],
         ])
         // Run unit tests.
         try {
-            ctest([
-                arguments: '--output-on-failure',
-                installation: cmakeInstallation,
-                workingDir: 'build',
-            ])
+            def pathVar = "${env.PATH}"
+            if (!isUnix()) {
+                // On Windows, we need to add the .dll folder to the PATH.
+                pathVar = "$pathVar;$installDir\\bin;$installDir\\lib"
+            }
+            withEnv(["PATH=$pathVar"]) {
+                ctest([
+                    arguments: "--output-on-failure -C $buildType",
+                    installation: cmakeInstallation,
+                    workingDir: 'build',
+                ])
+            }
             writeFile file: "${buildId}.success", text: "success\n"
         } catch (Exception) {
             writeFile file: "${buildId}.failure", text: "failure\n"
@@ -196,7 +203,7 @@ def buildSteps(config, jobName, buildId, buildType, cmakeArgs) {
 }
 
 // Builds a stage for given builds. Results in a parallel stage if `builds.size() > 1`.
-def makeStages(config, jobName, matrixIndex, os, builds, lblExpr, extraSteps) {
+def makeStages(config, jobName, jobSettings, matrixIndex, os, builds, lblExpr, extraSteps) {
     builds.collectEntries { buildType ->
         def id = "$matrixIndex $lblExpr: $buildType"
         [
@@ -207,7 +214,9 @@ def makeStages(config, jobName, matrixIndex, os, builds, lblExpr, extraSteps) {
                         try {
                             def buildId = "${lblExpr}_${buildType}".replace(' && ', '_')
                             withEnv(config['buildEnvironments'][lblExpr] ?: []) {
-                              buildSteps(config, jobName, buildId, buildType, (config['buildFlags'][os] ?: config['defaultBuildFlags'])[buildType])
+                              def baseFlags = (config['buildFlags'][os] ?: config['defaultBuildFlags'])[buildType]
+                              def flags = baseFlags + (jobSettings['extraFlags'] ?: [])
+                              buildSteps(config, jobName, buildId, buildType, flags)
                               extraSteps.each { fun ->
                                 if (fun instanceof String)
                                   "$fun"(config, jobName, buildId)
