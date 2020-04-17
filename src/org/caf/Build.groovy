@@ -215,7 +215,7 @@ def makeStages(config, jobName, jobSettings, matrixIndex, os, builds, lblExpr, e
                             def buildId = "${lblExpr}_${buildType}".replace(' && ', '_')
                             withEnv(config['buildEnvironments'][lblExpr] ?: []) {
                               def baseFlags = (config['buildFlags'][os] ?: config['defaultBuildFlags'])[buildType]
-                              def flags = baseFlags + (jobSettings['extraFlags'] ?: [])
+                              def flags = baseFlags + (jobSettings['extraFlags'] ?: []) + (jobSettings["extra${buildType.capitalize()}Flags"] ?: [])
                               buildSteps(config, jobName, buildId, buildType, flags)
                               extraSteps.each { fun ->
                                 if (fun instanceof String)
