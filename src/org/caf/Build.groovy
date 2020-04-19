@@ -102,7 +102,7 @@ def integrationTests(config, jobName, buildId) {
 }
 
 // Compiles, installs and tests via CMake.
-def cmakeSteps(config, jobName, buildId, buildType, cmakeBaseArgs) {
+def cmakeSteps(config, jobName, jobSettings, buildId, buildType, cmakeBaseArgs) {
     echo "Run CMake for build ID $buildId on node $NODE_NAME"
     def installDir = "$WORKSPACE/$buildId"
     def cmakeArgs = []
@@ -117,6 +117,19 @@ def cmakeSteps(config, jobName, buildId, buildType, cmakeBaseArgs) {
       cmakeArgs  << "-D$it"
     }
     cmakeArgs << "-DCMAKE_INSTALL_PREFIX=\"$installDir\""
+    def cmakeBuildArgs = [
+        "--target install",
+        "--config $buildType",
+    ]
+    if (jobSettings.containsKey('numCores')) {
+        // On UNIX, we use the (default) Makefile generator and set -j
+        // On MSVC, we need to set a compiler flag for parallel builds.
+        if (isUnix()) {
+            cmakeBuildArgs << "-j ${jobSettings.numCores}"
+        } else {
+            cmakeArgs << "-DCMAKE_CXX_FLAGS:STRING=/MP${jobSettings.numCores}"
+        }
+    }
     dir('sources') {
         // Configure and build.
         cmakeBuild([
@@ -126,7 +139,7 @@ def cmakeSteps(config, jobName, buildId, buildType, cmakeBaseArgs) {
             installation: cmakeInstallation,
             sourceDir: '.',
             steps: [[
-                args: "--target install --config $buildType",
+                args: cmakeBuildArgs.join(' '),
                 withCmake: true,
             ]],
         ])
@@ -171,7 +184,7 @@ def unzipAndDelete(buildId) {
 }
 
 // Runs all build steps.
-def buildSteps(config, jobName, buildId, buildType, cmakeArgs) {
+def buildSteps(config, jobName, jobSettings, buildId, buildType, cmakeArgs) {
     echo "prepare build steps on stage $STAGE_NAME"
     deleteDir()
     dir(buildId) {
@@ -198,31 +211,69 @@ def buildSteps(config, jobName, buildId, buildType, cmakeArgs) {
     def buildEnv = buildId.startsWith('Windows_') ? ['PATH=C:\\Windows\\System32;C:\\Program Files\\CMake\\bin;C:\\Program Files\\Git\\cmd;C:\\Program Files\\Git\\bin']
                                                   : ["label_exp=" + STAGE_NAME.toLowerCase(), "ASAN_OPTIONS=detect_leaks=0"]
     withEnv(buildEnv) {
-        cmakeSteps(config, jobName, buildId, buildType, cmakeArgs)
+        cmakeSteps(config, jobName, jobSettings, buildId, buildType, cmakeArgs)
+    }
+}
+
+def dockerBuild(config, imageName, jobSettings, buildId, buildType, flags) {
+    echo "Run ${imageName} Dockerfile on node $NODE_NAME"
+    unstash 'sources'
+    flags << "CMAKE_INSTALL_PREFIX:PATH=$WORKSPACE/bundle"
+    flags << "CMAKE_BUILD_TYPE:STRING=$buildType"
+    def envVars = config['buildEnvironments'][imageName] ?: []
+    if (jobSettings.containsKey('numCores'))
+        envVars << "CAF_NUM_CORES=${jobSettings.numCores}"
+    def rx = /^([a-zA-Z0-9_]+):([a-zA-Z0-9_]+)=(.+)$/
+    def cmakeVarsBuilder = new StringBuilder()
+    flags.each {
+        def res = (it =~ rx)
+        if(res.matches())
+          cmakeVarsBuilder << """set(${res.group(1)} "${res.group(3)}" CACHE ${res.group(2)} "")\n"""
+        else
+          throw new RuntimeException("Invalid CMake syntax: $it")
+    }
+    writeFile([
+        file: 'cmake-init.txt',
+        text: cmakeVarsBuilder.toString(),
+    ])
+    withEnv(envVars) {
+        def image = docker.build(imageName, "sources/.ci/${imageName}")
+        image.inside {
+            sh './sources/.ci/build.sh'
+        }
     }
 }
 
 // Builds a stage for given builds. Results in a parallel stage if `builds.size() > 1`.
 def makeStages(config, jobName, jobSettings, matrixIndex, os, builds, lblExpr, extraSteps) {
     builds.collectEntries { buildType ->
+        def isDockerBuild = (jobSettings['tags'] ?: []).contains('docker')
+        def nodeLbl = isDockerBuild ? 'docker' : lblExpr
         def id = "$matrixIndex $lblExpr: $buildType"
         [
             (id):
             {
-                node(lblExpr) {
+                node(nodeLbl) {
                     stage(id) {
-                        try {
-                            def buildId = "${lblExpr}_${buildType}".replace(' && ', '_')
+                        def baseFlags = (config['buildFlags'][os] ?: config['defaultBuildFlags'])[buildType]
+                        def flags = baseFlags + (jobSettings['extraFlags'] ?: []) + (jobSettings["extra${buildType.capitalize()}Flags"] ?: [])
+                        def buildId = "${lblExpr}_${buildType}".replace(' && ', '_')
+                        def stageImpl = {
                             withEnv(config['buildEnvironments'][lblExpr] ?: []) {
-                              def baseFlags = (config['buildFlags'][os] ?: config['defaultBuildFlags'])[buildType]
-                              def flags = baseFlags + (jobSettings['extraFlags'] ?: []) + (jobSettings["extra${buildType.capitalize()}Flags"] ?: [])
-                              buildSteps(config, jobName, buildId, buildType, flags)
+                              buildSteps(config, jobName, jobSettings, buildId, buildType, flags)
                               extraSteps.each { fun ->
-                                if (fun instanceof String)
-                                  "$fun"(config, jobName, buildId)
-                                else
-                                  fun(config, jobName, buildId)
+                                  if (fun instanceof String)
+                                      "$fun"(config, jobName, buildId)
+                                  else
+                                      fun(config, jobName, buildId)
                               }
+                            }
+                        }
+                        try {
+                            if (isDockerBuild) {
+                                dockerBuild(config, lblExpr, jobSettings, buildId, buildType, flags)
+                            } else {
+                                stageImpl()
                             }
                         } finally {
                           cleanWs()
