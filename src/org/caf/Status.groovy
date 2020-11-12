@@ -41,8 +41,6 @@ def buildStatus(buildIds) {
 // Reports the status of the unit tests check.
 def testsStatus(buildIds) {
     def failed = buildIds.findAll {
-        try { unstash it }
-        catch (Exception) { }
         !fileExists("${it}.success")
     }
     def numBuilds = buildIds.size()
@@ -146,12 +144,37 @@ def collectAllChecks(config, jobName) {
         // Compute the list of all build IDs.
         def buildIds = []
         config['buildMatrix'].each {
-            def (os, settings) = it
-            settings['tools'].each { tool ->
-                settings['builds'].each {
-                    buildIds << "${os}_${tool}_${it}"
-                }
+            config['builds'].each {
+                buildIds << "${os}_${it}"
             }
+        }
+        // Fetch stashed files for all builds.
+        buildIds.each {
+            try { unstash it }
+            catch (Exception) { }
+        }
+        // Read all .build-info files and generate a nicely formatted artifact.
+        def buildInfosIn = sh([
+            script: """cat *.build-info 2>/dev/null || echo""",
+            returnStdout: true,
+        ]).trim().tokenize('\n')
+        def buildInfosOut = StringBuilder.newInstance()
+        ['Compiler: ', 'CMake: '].each { prefix ->
+            def lines = buildInfosIn.findAll { it.startsWith(prefix) }         \
+                                    .collect { it.drop(prefix.size()) }        \
+                                    .sort()                                    \
+                                    .unique()
+            if (!lines.isEmpty())
+                buildInfosOut << prefix.trim() << '\n'                         \
+                              << lines.join('\n') << '\n\n'
+        }
+        def buildInfosOutStr = buildInfosOut.toString()
+        if (!buildInfosOutStr.isEmpty()) {
+            writeFile([
+                      file: 'build-info.txt',
+                      text: buildInfosOutStr,
+            ])
+            archiveArtifacts('build-info.txt')
         }
         // Collect headlines and summaries for the email notification.
         def failedChecks = 0
@@ -161,7 +184,6 @@ def collectAllChecks(config, jobName) {
         config['checks'].each {
             def checkResult = "${it}Status"(buildIds)
             if (checkResult.success) {
-                headlines << "✅ $it"
                 texts << checkResult.text
                 // Don't set commit status for 'build', because Jenkins will do that anyway.
                 if (it != 'build')
@@ -175,6 +197,8 @@ def collectAllChecks(config, jobName) {
             if (checkResult.containsKey('attachmentsPattern'))
               attachmentsPatterns << checkResult.attachmentsPattern
         }
+        if (headlines.isEmpty())
+          headlines << "✅ success"
         // Make sure we have a newline at the end of the email.
         texts << ''
         // Send email notification.

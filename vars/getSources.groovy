@@ -1,5 +1,8 @@
-def call(config) {
-    echo "build branch ${env.GIT_BRANCH}"
+def call(Map config) {
+    def ciLibVersion = config['ciLibVersion'] ?: 0.0
+    if (ciLibVersion < 1.0)
+        throw new RuntimeException('CAF CI pipeline syntax no longer supported, please use at least ciLibVersion 1.0')
+    echo "fetch sources for branch ${env.GIT_BRANCH}"
     deleteDir()
     dir('sources') {
         checkout scm
@@ -17,6 +20,19 @@ def call(config) {
               sh scripts/get-release-version.sh
             fi
         """
+        // Write config and normalized build matrix to disk.
+        writeJSON file: 'config.json', json: config
+        archiveArtifacts 'config.json'
+        def pyScript = libraryResource 'org/caf/normalize-build-matrix.py'
+        writeFile([
+            file: 'normalize-build-matrix.py',
+            text: pyScript,
+        ])
+        sh '''
+            chmod +x normalize-build-matrix.py
+            ./normalize-build-matrix.py config.json build-matrix.json
+        '''
+        archiveArtifacts 'build-matrix.json'
     }
     stash includes: 'sources/**', name: 'sources'
     notifyAllChecks(config, 'pending', '')

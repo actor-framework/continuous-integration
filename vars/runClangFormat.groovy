@@ -1,4 +1,4 @@
-def call(config) {
+def call(Map config) {
     deleteDir()
     unstash 'sources'
     dir('sources') {

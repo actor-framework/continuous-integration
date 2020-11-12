@@ -1,22 +1,15 @@
-def call(config, jobName) {
-    def build = new org.caf.Build()
-    // Create stages for building everything in our build matrix in parallel.
-    def xs = [:]
-    config['buildMatrix'].eachWithIndex { entry, index ->
-        def (os, settings) = entry
-        if (settings.containsKey('tools')) {
-            settings['tools'].eachWithIndex { tool, toolIndex ->
-                def matrixIndex = "[$index:$toolIndex]"
-                def builds = settings['builds']
-                def labelExpr = "$os && $tool"
-                xs << build.makeStages(config, jobName, settings, matrixIndex, os, builds, labelExpr, settings['extraSteps'] ?: [])
-            }
-        } else {
-            def matrixIndex = "[$index]"
-            def builds = settings['builds']
-            def labelExpr = "$os"
-            xs << build.makeStages(config, jobName, settings, matrixIndex, os, builds, labelExpr, settings['extraSteps'] ?: [])
-        }
+def call(config) {
+    deleteDir()
+    unstash 'sources'
+    def stages = [:]
+    def factory = new org.caf.Build()
+    def buildMatrix = readJSON file: 'sources/build-matrix.json'
+    for (int index = 0; index < buildMatrix.size(); ++index) {
+        (os, buildType, settings) = buildMatrix[index]
+        def indexStr = "$index".padLeft(2, '0')
+        def label = "[$indexStr] $os $buildType"
+        def isDockerBuild = settings['tags'].contains('docker')
+        stages << factory.makeStage(index, label, isDockerBuild ? 'docker' : os)
     }
-    parallel xs
+    parallel stages
 }

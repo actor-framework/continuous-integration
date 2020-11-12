@@ -1,4 +1,4 @@
-def call(config, result, message) {
+def call(Map config, String result, String message) {
     def status = new org.caf.Status()
     config['checks'].each {
         if (it != 'build')
