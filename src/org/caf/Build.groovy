@@ -238,7 +238,7 @@ def dockerBuild(config, imageName, jobSettings, buildId, buildType, flags) {
     ])
     withEnv(envVars) {
         def image = docker.build(imageName, "sources/.ci/${imageName}")
-        image.inside {
+        image.inside("--cap-add SYS_PTRACE") {
             sh './sources/.ci/build.sh'
         }
     }
