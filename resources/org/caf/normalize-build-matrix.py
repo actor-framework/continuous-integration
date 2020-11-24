@@ -9,6 +9,7 @@ outputFile = sys.argv[2]
 
 with open(inputFile, 'r') as f:
     data = f.read()
+config = json.loads(data)
 
 def copy_without(xs, key):
     ys = xs.copy()
@@ -49,7 +50,7 @@ def normalize(what, settings, buildType, defaults):
 
 def normalize_entry(os, build_type, settings, what):
     key = 'build{}'.format(what.capitalize())
-    defaults = settings[key] if key in settings else []
+    defaults = config[key] if key in config else []
     return [os, build_type, normalize(what, settings, build_type, defaults)]
 
 def add_tags_if_missing(os, build_type, settings):
@@ -62,7 +63,6 @@ def call(f, args):
     return f(*args)
 
 
-config = json.loads(data)
 buildMatrix = config['buildMatrix']
 
 pipeline = make_pipeline( \
@@ -73,8 +73,6 @@ pipeline = make_pipeline( \
     map_step(lambda entry: add_tags_if_missing(*entry)))
 
 normalizedBuildMatrix = list(pipeline(buildMatrix))
-
-print(normalizedBuildMatrix)
 
 with open(outputFile, 'w') as f:
     json.dump(normalizedBuildMatrix, f, indent=2)
