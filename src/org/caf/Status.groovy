@@ -155,7 +155,7 @@ def collectAllChecks(config, jobName) {
         }
         // Read all .build-info files and generate a nicely formatted artifact.
         def buildInfosIn = sh([
-            script: """cat *.build-info 2>/dev/null || echo""",
+            script: """cat *.txt 2>/dev/null || echo""",
             returnStdout: true,
         ]).trim().tokenize('\n')
         def buildInfosOut = StringBuilder.newInstance()
@@ -171,8 +171,8 @@ def collectAllChecks(config, jobName) {
         def buildInfosOutStr = buildInfosOut.toString()
         if (!buildInfosOutStr.isEmpty()) {
             writeFile([
-                      file: 'build-info.txt',
-                      text: buildInfosOutStr,
+                file: 'build-info.txt',
+                text: buildInfosOutStr,
             ])
             archiveArtifacts('build-info.txt')
         }
