@@ -29,21 +29,21 @@ def fileLinesOrEmptyList(fileName) {
 }
 
 // Reports the status of the build itself, i.e., compiling via CMake.
-def buildStatus(buildIds) {
+def buildStatus(numBuilds) {
     [
         // We always report success here, because we won't reach the final stage otherwise.
         success: true,
-        summary: "All ${buildIds.size()} builds compiled",
-        text: "Successfully compiled all ${buildIds.size()} builds for $PrettyJobName.",
+        summary: "All $numBuilds builds compiled",
+        text: "Successfully compiled all $numBuilds builds for $PrettyJobName.",
     ]
 }
 
 // Reports the status of the unit tests check.
-def testsStatus(buildIds) {
-    def failed = buildIds.findAll {
-        !fileExists("${it}.success")
-    }
-    def numBuilds = buildIds.size()
+def testsStatus(numBuilds) {
+    def failed = []
+    for (int i = 0; i < numBuilds; ++i)
+        if (!fileExists("build-${i}.success"))
+            failed << i
     if (failed.isEmpty())
         return [
             success: true,
@@ -58,35 +58,8 @@ def testsStatus(buildIds) {
     ]
 }
 
-// Reports the status of the integration tests check.
-def integrationStatus(buildIds) {
-    try { unstash 'integration-result' }
-    catch (Exception) { }
-    def all = fileLinesOrEmptyList('all-integration-tests.txt')
-    def failed = fileLinesOrEmptyList('failed-integration-tests.txt')
-    if (all.isEmpty())
-        return [
-            success: false,
-            summary: 'Unable to run integration tests',
-            text: 'Unable to run integration tests!',
-        ]
-    def numTests = all.size()
-    if (failed.isEmpty())
-        return [
-            success: true,
-            summary: "All $numTests integration tests passed",
-            text: "All $numTests integration tests passed.",
-        ]
-    def failRate = "${failed.size()}/$numTests"
-    [
-        success: false,
-        summary: "$failRate integration tests failed",
-        text: "The following integration tests failed ($failRate):\n" + failed.collect{"- $it"}.join('\n')
-    ]
-}
-
 // Reports the status of the clang-format check.
-def styleStatus(buildIds) {
+def styleStatus(numBuilds) {
     def clangFormatDiff = ''
     try {
         unstash 'clang-format-result'
@@ -113,49 +86,45 @@ def styleStatus(buildIds) {
     ]
 }
 
-// Reports the status of the coverage check.
-def coverageStatus(buildIds) {
-    try {
-        unstash 'coverage-result'
-        def coverageResult = readJSON('coverage.json')
-        writeFile([
-            file: 'coverage.txt',
-            text: coverageResult['percent_covered'],
-        ])
-        archiveArtifacts('project-coverage.txt')
-    }
-    catch (Exception) { }
-    if (fileExists('coverage.json'))
-        return [
-            success: true,
-            summary: 'Generated coverage report',
-            text: "The coverage report was successfully generated.",
-        ]
-    [
-        success: false,
-        summary: 'Unable to generate coverage report',
-        text: 'No coverage report was produced!',
-    ]
-}
+// // Reports the status of the coverage check. TODO: reimplement
+// def coverageStatus(buildIds) {
+//     try {
+//         unstash 'coverage-result'
+//         def coverageResult = readJSON('coverage.json')
+//         writeFile([
+//             file: 'coverage.txt',
+//             text: coverageResult['percent_covered'],
+//         ])
+//         archiveArtifacts('project-coverage.txt')
+//     }
+//     catch (Exception) { }
+//     if (fileExists('coverage.json'))
+//         return [
+//             success: true,
+//             summary: 'Generated coverage report',
+//             text: "The coverage report was successfully generated.",
+//         ]
+//     [
+//         success: false,
+//         summary: 'Unable to generate coverage report',
+//         text: 'No coverage report was produced!',
+//     ]
+// }
 
 def collectAllChecks(config, jobName) {
     dir('tmp') {
         deleteDir()
-        // Compute the list of all build IDs.
-        def buildIds = []
-        config['buildMatrix'].each {
-            config['builds'].each {
-                buildIds << "${os}_${it}"
-            }
-        }
+        unstash 'sources'
+        def buildMatrix = readJSON file: 'sources/build-matrix.json'
+        int numBuilds = buildMatrix.size()
         // Fetch stashed files for all builds.
-        buildIds.each {
-            try { unstash it }
+        for (int i = 0; i < numBuilds; ++i) {
+            try { unstash "build-${i}" }
             catch (Exception) { }
         }
-        // Read all .build-info files and generate a nicely formatted artifact.
+        // Read all .info files and generate a nicely formatted artifact.
         def buildInfosIn = sh([
-            script: """cat *.txt 2>/dev/null || echo""",
+            script: """cat *.info 2>/dev/null || echo""",
             returnStdout: true,
         ]).trim().tokenize('\n')
         def buildInfosOut = StringBuilder.newInstance()
@@ -182,7 +151,7 @@ def collectAllChecks(config, jobName) {
         def texts = []
         def attachmentsPatterns = []
         config['checks'].each {
-            def checkResult = "${it}Status"(buildIds)
+            def checkResult = "${it}Status"(numBuilds)
             if (checkResult.success) {
                 texts << checkResult.text
                 // Don't set commit status for 'build', because Jenkins will do that anyway.
@@ -197,8 +166,12 @@ def collectAllChecks(config, jobName) {
             if (checkResult.containsKey('attachmentsPattern'))
               attachmentsPatterns << checkResult.attachmentsPattern
         }
-        if (headlines.isEmpty())
-          headlines << "✅ success"
+        if (headlines.isEmpty()) {
+            if (currentBuild.result == "UNSTABLE")
+                headlines << "⚠️  unstable"
+            else
+                headlines << "✅ success"
+        }
         // Make sure we have a newline at the end of the email.
         texts << ''
         // Send email notification.

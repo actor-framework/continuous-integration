@@ -55,9 +55,9 @@ def coverageReport(config, jobName, buildId) {
     }
 }
 
-def unixBuild(os, buildType, settings, buildId) {
+def unixBuild(os, buildType, settings, buildId, index) {
     def flags = settings['flags'] + [
-        "CAF_BUILD_INFO_FILE_PATH=${pwd()}/${buildId}.txt",
+        "CAF_BUILD_INFO_FILE_PATH=${pwd()}/build-${index}.info",
         "CMAKE_INSTALL_PREFIX=${pwd()}/${buildId}"
     ]
     def numCores = settings['numCores'] ?: 1
@@ -79,12 +79,12 @@ def unixBuild(os, buildType, settings, buildId) {
                 arguments: "--output-on-failure",
                 workingDir: 'build',
             ])
-            writeFile file: "${buildId}.success", text: "success\n"
+            writeFile file: "build-${index}.success", text: "success\n"
         }
     }
 }
 
-def msvcBuild(os, buildType, settings, buildId) {
+def msvcBuild(os, buildType, settings, buildId, index) {
     def installDir = "${pwd()}/${buildId}"
     def extraPaths = [
         "C:/Windows/System32",
@@ -98,7 +98,7 @@ def msvcBuild(os, buildType, settings, buildId) {
     def numCores = settings['numCores'] ?: 1
     def mpFlags = numCores < 2 ? [] : ["CMAKE_CXX_FLAGS:STRING=/MP$numCores"]
     def flags = settings['flags'] + mpFlags + [
-        "CAF_BUILD_INFO_FILE_PATH=${pwd()}/${buildId}.txt",
+        "CAF_BUILD_INFO_FILE_PATH=${pwd()}/build-${index}.info",
         "CMAKE_INSTALL_PREFIX=$installDir"
     ]
     withEnv(buildEnv) {
@@ -118,14 +118,14 @@ def msvcBuild(os, buildType, settings, buildId) {
                 arguments: "--output-on-failure -C $buildType",
                 workingDir: 'build',
             ])
-            writeFile file: "${buildId}.success", text: "success\n"
+            writeFile file: "build-${index}.success", text: "success\n"
 
         }
     }
 }
 
 // Runs all build steps.
-def cmakeBuild(os, buildType, settings) {
+def cmakeBuild(os, buildType, settings, index) {
     def buildId = ([os, buildType] + settings['tags']).join('_')
     echo "Run CMake build $buildId on node $NODE_NAME"
     if (!settings['tags'].isEmpty())
@@ -134,13 +134,13 @@ def cmakeBuild(os, buildType, settings) {
       // Create directory.
     }
     if (isUnix())
-        unixBuild(os, buildType, settings, buildId)
+        unixBuild(os, buildType, settings, buildId, index)
     else
-        msvcBuild(os, buildType, settings, buildId)
-    stash includes: "${buildId}.*", name: buildId
+        msvcBuild(os, buildType, settings, buildId, index)
+    stash includes: "build-${index}.*", name: "build-${index}"
 }
 
-def dockerBuild(imageName, buildType, settings) {
+def dockerBuild(imageName, buildType, settings, index) {
     def buildId = "${imageName}_${buildType}"
     echo "Run Docker build for image ${imageName} on node $NODE_NAME"
     def baseDir = pwd()
@@ -159,7 +159,7 @@ def dockerBuild(imageName, buildType, settings) {
         def value = res.group(3)
         init << """set($varName "$value" CACHE $varType "")\n"""
     }
-    init << """set(CAF_BUILD_INFO_FILE_PATH "$baseDir/${buildId}.txt" CACHE FILEPATH "")\n""" \
+    init << """set(CAF_BUILD_INFO_FILE_PATH "$baseDir/build-${index}.info" CACHE FILEPATH "")\n""" \
          << """set(CMAKE_INSTALL_PREFIX "$installDir" CACHE PATH "")\n""" \
          << """set(CMAKE_BUILD_TYPE "$buildType" CACHE STRING "")\n"""
     writeFile([
@@ -181,10 +181,10 @@ def dockerBuild(imageName, buildType, settings) {
             sh "./sources/.ci/run.sh build '$initFile' '$sourceDir' '$buildDir'"
             warnError('Unit Tests failed!') {
                 sh "./sources/.ci/run.sh test '$buildDir'"
-                writeFile file: "${buildId}.success", text: "success\n"
+                writeFile file: "build-${index}.success", text: "success\n"
             }
         }
-        stash includes: "${buildId}.*", name: buildId
+        stash includes: "build-${index}.*", name: "build-${index}"
     }
 }
 
@@ -195,9 +195,9 @@ def runStage(int index) {
     def buildMatrix = readJSON file: 'sources/build-matrix.json'
     (os, buildType, settings) = buildMatrix[index]
     if (settings['tags'].contains('docker'))
-        dockerBuild(os, buildType, settings)
+        dockerBuild(os, buildType, settings, index)
     else
-        cmakeBuild(os, buildType, settings)
+        cmakeBuild(os, buildType, settings, index)
 }
 
 def makeStage(int index, String label, String os) {
