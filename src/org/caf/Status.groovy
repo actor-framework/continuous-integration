@@ -8,11 +8,11 @@ def setBuildStatus(config, context, state, message) {
         sh([
             returnStdout: false,
             script: """
-                curl https://api.github.com/repos/${config.repository}/statuses/${env.GIT_COMMIT} \
-                     -H "authorization: token \$GitHubToken" \
-                     -H "content-type: application/json" \
-                     -X POST \
-                     -d '{ "state": "$state", "description": "$message", "target_url": "${env.BUILD_URL}", "context": "$context" }' \
+                curl -X POST \
+                     -H "Accept: application/vnd.github+json" \
+                     -H "Authorization: Bearer \$GitHubToken"\
+                     https://api.github.com/repos/${config.repository}/statuses/${env.GIT_COMMIT} \
+                     -d '{"state":"$state","target_url":"${env.BUILD_URL}","description":"$message","context":"$context"}' \
                      || true
             """
         ])
