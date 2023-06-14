@@ -140,7 +140,8 @@ def cmakeBuild(os, buildType, settings, index) {
     stash includes: "build-${index}.*", name: "build-${index}"
 }
 
-def dockerBuild(imageName, buildType, settings, index) {
+def dockerBuild(osConfig, buildType, settings, index) {
+    def imageName = osConfig.split(':')[0]
     def buildId = "${imageName}_${buildType}"
     echo "Run Docker build for image ${imageName} on node $NODE_NAME"
     def baseDir = pwd()
