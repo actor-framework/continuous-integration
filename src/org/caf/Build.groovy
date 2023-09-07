@@ -184,6 +184,11 @@ def dockerBuild(osConfig, buildType, settings, index) {
                 sh "./sources/.ci/run.sh test '$buildDir'"
                 writeFile file: "build-${index}.success", text: "success\n"
             }
+            warnError('Extra script failed!') {
+                settings['extraScripts'].each {
+                    sh "$it"
+                }
+            }
         }
         stash includes: "build-${index}.*", name: "build-${index}"
     }
