@@ -173,7 +173,7 @@ def dockerBuild(osConfig, buildType, settings, index) {
     def numCores = settings['numCores'] ?: 1
     def extraEnv = numCores > 1 ? ["CAF_NUM_CORES=$numCores"] : []
     withEnv(settings['env'] + extraEnv) {
-        def image = docker.build(imageName, "sources/.ci/${imageName}")
+        def image = docker.build(imageName, "-f .ci/${imageName}/Dockerfile ${sourceDir}")
         image.inside("--cap-add SYS_PTRACE") {
             settings['tags'].each {
                 if (it != 'docker')
