@@ -158,7 +158,7 @@ def dockerBuild(osConfig, buildType, settings, index) {
         def varName = res.group(1)
         def varType = res.group(2)
         def value = res.group(3)
-        init << """set($varName "$value" CACHE $varType "")\n"""
+        init << """set($varName "$value" CACHE $varType "" FORCE)\n"""
     }
     init << """set(CAF_BUILD_INFO_FILE_PATH "$baseDir/build-${index}.info" CACHE FILEPATH "")\n""" \
          << """set(CMAKE_INSTALL_PREFIX "$installDir" CACHE PATH "")\n""" \
