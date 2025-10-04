@@ -11,6 +11,7 @@ RUN dnf update -y \
          libasan \
          libubsan \
          make \
+         ninja-build \
          openssl-devel \
          python3 \
          python3-pip \
