@@ -1,0 +1,32 @@
+name: ghcr-fedora-42
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - "linux/fedora-42/**"
+
+jobs:
+  update-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: linux/fedora-42/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/ci-fedora-42:latest
